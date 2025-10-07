@@ -15,7 +15,7 @@ class InputData(BaseModel):
 @app.post("/predict")
 def predict(data: InputData):
 
-    X = np.array(data.pixels).reshape(1, 28, 28, 1) / 255.0  # normalize if trained that way
+    X = np.array(data.pixels).reshape(1, 28, 28, 1) / 255.0
     y_pred = model.predict(X)
     predicted_class = int(np.argmax(y_pred, axis=1)[0])
     return {"prediction": predicted_class}
