@@ -1,34 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MNIST Digit Classifier</title>
     <style>
-        canvas { border:1px solid black; }
-        #controls { margin-top: 10px; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        canvas {
+            border: 1px solid black;
+            cursor: crosshair;
+        }
+        #controls {
+            margin-top: 10px;
+        }
+        video {
+            border: 1px solid black;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <h1>MNIST Digit Classifier</h1>
 
-    <!-- Gallery Upload -->
-    <input type="file" id="upload" accept="image/*"><br><br>
+    <!-- Upload from Gallery -->
+    <input type="file" id="upload" accept="image/*" aria-label="Upload digit image"><br><br>
 
-    <!-- Canvas for drawing -->
+    <!-- Drawing Canvas -->
     <canvas id="canvas" width="280" height="280"></canvas>
     <div id="controls">
-        <button onclick="clearCanvas()">Clear</button>
+        <button type="button" onclick="clearCanvas()">Clear</button>
     </div>
     <br>
 
-    <!-- Webcam -->
-    <video id="video" width="280" height="280" autoplay></video>
-    <button onclick="captureWebcam()">Capture</button>
+    <!-- Webcam Capture -->
+    <video id="video" width="280" height="280" autoplay></video><br>
+    <button type="button" onclick="captureWebcam()">Capture</button>
     <br><br>
 
-    <button onclick="predict()">Predict</button>
+    <button type="button" onclick="predict()">Predict</button>
     <p id="result">Prediction: </p>
 
     <script>
+        // Canvas setup
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = "black";
@@ -38,7 +59,10 @@
 
         let drawing = false;
 
-        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mousedown', () => {
+            drawing = true;
+            ctx.beginPath();
+        });
         canvas.addEventListener('mouseup', () => drawing = false);
         canvas.addEventListener('mousemove', draw);
 
@@ -58,12 +82,14 @@
         // Webcam setup
         const video = document.getElementById('video');
         navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => { video.srcObject = stream; });
+            .then(stream => { video.srcObject = stream; })
+            .catch(err => console.error("Webcam access denied:", err));
 
         let capturedImage = null;
         function captureWebcam() {
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 28; tempCanvas.height = 28;
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
             const tempCtx = tempCanvas.getContext('2d');
             tempCtx.drawImage(video, 0, 0, 28, 28);
             capturedImage = tempCtx.getImageData(0, 0, 28, 28);
@@ -75,57 +101,65 @@
         const uploadInput = document.getElementById('upload');
         uploadInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = (event) => {
                 const img = new Image();
-                img.onload = function() {
+                img.onload = () => {
                     const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = 28; tempCanvas.height = 28;
+                    tempCanvas.width = 28;
+                    tempCanvas.height = 28;
                     const tempCtx = tempCanvas.getContext('2d');
                     tempCtx.drawImage(img, 0, 0, 28, 28);
-                    uploadedImage = tempCtx.getImageData(0,0,28,28);
+                    uploadedImage = tempCtx.getImageData(0, 0, 28, 28);
                     alert("Image uploaded!");
-                }
+                };
                 img.src = event.target.result;
-            }
+            };
             reader.readAsDataURL(file);
         });
 
-        // Convert ImageData to 784-length grayscale array
+        // Convert ImageData to normalized grayscale array (length = 784)
         function imageDataToArray(imageData) {
             const arr = [];
             const data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
-                // grayscale = (R+G+B)/3, invert color
-                arr.push((255 - (data[i] + data[i+1] + data[i+2])/3)/255.0);
+                const grayscale = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                arr.push((255 - grayscale) / 255.0);
             }
             return arr;
         }
 
-        // Get array from canvas
+        // Get pixel array from canvas
         function canvasToArray() {
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 28; tempCanvas.height = 28;
+            tempCanvas.width = 28;
+            tempCanvas.height = 28;
             const tempCtx = tempCanvas.getContext('2d');
             tempCtx.drawImage(canvas, 0, 0, 28, 28);
             const imageData = tempCtx.getImageData(0, 0, 28, 28);
             return imageDataToArray(imageData);
         }
 
-        // Predict function
+        // Prediction function
         async function predict() {
             let pixels = null;
             if (uploadedImage) pixels = imageDataToArray(uploadedImage);
             else if (capturedImage) pixels = imageDataToArray(capturedImage);
             else pixels = canvasToArray();
 
-            const res = await fetch("https://huggingface.co/spaces/<username>/<space-name>/api/predict", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ pixels: pixels })
-            });
-            const data = await res.json();
-            document.getElementById("result").innerText = "Prediction: " + data.prediction;
+            try {
+                const res = await fetch("https://huggingface.co/spaces/<username>/<space-name>/api/predict", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pixels })
+                });
+                const data = await res.json();
+                document.getElementById("result").innerText = "Prediction: " + data.prediction;
+            } catch (error) {
+                console.error("Prediction failed:", error);
+                document.getElementById("result").innerText = "Prediction: Error fetching result.";
+            }
         }
     </script>
 </body>
