@@ -91,16 +91,20 @@ async function predict() {
   if (uploadedImage) pixels = imageDataToArray(uploadedImage);
   else if (capturedImage) pixels = imageDataToArray(capturedImage);
   else pixels = canvasToArray();
-
-  const res = await fetch(
-    "https://huggingface.co/spaces/<username>/<space-name>/api/predict",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pixels: pixels }),
-    }
-  );
-  const data = await res.json();
+  try {
+    const res = await fetch(
+      "https://huggingface.co/spaces/<username>/<space-name>/api/predict",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pixels: pixels }),
+      }
+    );
+    const data = await res.json();
+  } catch (e) {
+    console.log(e);
+    alert("Something went wrong! Please try again.");
+  }
   document.getElementById("result").innerText =
     "Prediction: " + data.prediction;
 }
